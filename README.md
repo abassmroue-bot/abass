@@ -10,7 +10,34 @@ push-to-talk voice, durable memory, the proactive heartbeat, and the
 safety rails. See `AGENT.md` for the full tier roadmap, what's verified,
 and what's next.
 
-## Setup
+## Quickstart
+
+```bash
+git clone https://github.com/abassmroue-bot/abass.git
+cd abass
+./run.sh            # macOS/Linux
+# or: run.bat       # Windows
+```
+
+First run creates a virtual environment, installs everything, then stops
+and asks you to put your `ANTHROPIC_API_KEY` in the `.env` file it just
+created (get one at console.anthropic.com). Run it again after that and
+it launches straight into a text conversation. Every later run just
+re-activates the same environment and starts — no setup steps to
+remember.
+
+```bash
+./run.sh            # text chat (default)
+./run.sh voice       # push-to-talk voice
+./run.sh heartbeat   # the background proactive loop
+```
+
+(Windows: same three, via `run.bat` instead of `./run.sh`.)
+
+## Manual setup
+
+If you'd rather run the steps yourself (or the launcher script doesn't
+fit your setup):
 
 ```bash
 python3 -m venv .venv

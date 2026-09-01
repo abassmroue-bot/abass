@@ -330,3 +330,18 @@ conversation rather than via the scheduler tests already covered in
 Tier 5 — the mechanism is proven, just not with a model in the loop
 reacting to a heartbeat-surfaced notice via `list_notices`/
 `dismiss_notice` in a live chat. That's a reasonable next thing to try.
+
+## Update: one-command launcher
+
+`./run.sh` (macOS/Linux) and `run.bat` (Windows) at the project root:
+create the virtual environment on first run, install dependencies, stop
+and ask for `ANTHROPIC_API_KEY` if `.env` doesn't exist yet, then launch.
+`./run.sh`, `./run.sh voice`, and `./run.sh heartbeat` dispatch to the
+three entry points. This exists purely to remove manual setup steps —
+running any of the three entry points by hand still works exactly as
+documented above and in the README; the launcher doesn't change what
+they do, just how you get to them. Verified: the missing-`.env` path
+(creates it, exits with a clear message), the default text path with a
+real conversation, mode dispatch to `voice` and `heartbeat`, and the
+invalid-argument usage message — all run for real in this build
+environment.
