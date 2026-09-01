@@ -100,7 +100,21 @@ Non-urgent notices respect quiet hours; the schedule survives restarts.
       history). Not yet verified against a live model reply — no
       `ANTHROPIC_API_KEY` was available in the build environment; do that
       first before starting Tier 2.
-- [ ] Tier 2 — tools
+- [x] Tier 2 — tools (`src/trillion/tools/`): a `ToolRegistry` plus the
+      first two capabilities — `add_reminder`/`list_reminders`/
+      `complete_reminder` (backed by a small JSON file under
+      `TRILLION_DATA_DIR`, default `./data`) and `search_notes` (plain-text
+      search over `TRILLION_NOTES_DIR`, default `./notes`). `Brain.take_turn`
+      now loops on tool calls until the model gives a final text reply,
+      feeding each tool's result (or error) back to the model rather than
+      crashing. Verified: unit tests for the registry, both tools, and the
+      brain's tool-call loop (success, failure, and a runaway-loop guard);
+      a real end-to-end run of the tools against the filesystem (reminder
+      persisted to JSON, note found by search, missing-input and
+      unknown-tool errors both handled gracefully). Still not verified
+      against a live model — same `ANTHROPIC_API_KEY` gap as Tier 1.
+      Drafting messages and web lookups (the other two named capabilities)
+      are not built yet — natural next tools to add to the registry.
 - [ ] Tier 3 — voice (push-to-talk)
 - [ ] Tier 4 — durable memory
 - [ ] Tier 5 — heartbeat / proactivity

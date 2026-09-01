@@ -27,24 +27,58 @@ class ProviderError(Exception):
 
 @dataclass
 class Reply:
-    text: str
+    """A model reply, as plain-dict content blocks (text and/or tool_use).
+
+    Kept as plain dicts rather than raw SDK objects so the rest of the
+    harness (and its tests) never need to import `anthropic` and so these
+    blocks can be fed straight back into the next `send()` call as-is.
+    """
+
+    content: list[dict]
     stop_reason: str | None
+
+    @property
+    def text(self) -> str:
+        return "".join(b["text"] for b in self.content if b.get("type") == "text")
+
+    @property
+    def tool_uses(self) -> list[dict]:
+        return [b for b in self.content if b.get("type") == "tool_use"]
+
+
+def _serialize_content(blocks) -> list[dict]:
+    serialized: list[dict] = []
+    for block in blocks:
+        if block.type == "text":
+            serialized.append({"type": "text", "text": block.text})
+        elif block.type == "tool_use":
+            serialized.append(
+                {"type": "tool_use", "id": block.id, "name": block.name, "input": block.input}
+            )
+    return serialized
 
 
 def send(
     messages: list[dict],
     system_prompt: str,
+    tools: list[dict] | None = None,
     on_token: Callable[[str], None] | None = None,
 ) -> Reply:
     """Send a conversation to the model and return its full reply.
 
-    `messages` is the running conversation (oldest first), each item a
-    dict with "role" ("user" or "assistant") and "content" (plain text
-    for now — tool-call content blocks arrive in Tier 2).
+    `messages` is the running conversation (oldest first). Each item is a
+    dict with "role" ("user" or "assistant") and "content" — either plain
+    text, or a list of content blocks (text / tool_use / tool_result) once
+    tools are in play.
 
-    If `on_token` is given, it's called with each chunk of reply text as
-    it streams in, so a caller can print — or eventually speak — the
-    reply before the whole thing has finished generating.
+    `tools`, when given, is a list of tool specs in the provider's format
+    (see `trillion.tools.registry.Tool.spec`); the model may respond with
+    one or more `tool_use` blocks instead of (or alongside) text.
+
+    If `on_token` is given, it's called with each chunk of reply *text* as
+    it streams in (tool-call blocks aren't streamed token-by-token), so a
+    caller can print — or eventually speak — the reply before the whole
+    thing has finished generating.
     """
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
@@ -55,13 +89,17 @@ def send(
 
     client = anthropic.Anthropic(api_key=api_key)
 
+    kwargs: dict = dict(
+        model=DEFAULT_MODEL,
+        max_tokens=DEFAULT_MAX_TOKENS,
+        system=system_prompt,
+        messages=messages,
+    )
+    if tools:
+        kwargs["tools"] = tools
+
     try:
-        with client.messages.stream(
-            model=DEFAULT_MODEL,
-            max_tokens=DEFAULT_MAX_TOKENS,
-            system=system_prompt,
-            messages=messages,
-        ) as stream:
+        with client.messages.stream(**kwargs) as stream:
             for chunk in stream.text_stream:
                 if on_token is not None:
                     on_token(chunk)
@@ -75,7 +113,4 @@ def send(
     except anthropic.AnthropicError as exc:
         raise ProviderError(f"model provider error ({exc})") from exc
 
-    text = "".join(
-        block.text for block in final.content if getattr(block, "type", None) == "text"
-    )
-    return Reply(text=text, stop_reason=final.stop_reason)
+    return Reply(content=_serialize_content(final.content), stop_reason=final.stop_reason)
