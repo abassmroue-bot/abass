@@ -11,6 +11,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from ..config import get_confirmation_required_tools
+
 
 @dataclass
 class Tool:
@@ -46,6 +48,16 @@ class ToolRegistry:
 
     def specs(self) -> list[dict]:
         return [tool.spec() for tool in self._tools.values()]
+
+    def requires_confirmation(self, name: str) -> bool:
+        """Whether `name` must go through the confirmation gate before it
+        runs — true if the tool itself says so, or if config.yaml's
+        `tools.require_confirmation` list names it. Config can only widen
+        this, never narrow it below what the tool's own code declares."""
+        tool = self.get(name)
+        if tool is None:
+            return False
+        return tool.requires_confirmation or name in get_confirmation_required_tools()
 
     def run(self, name: str, tool_input: dict) -> str:
         """Run a tool by name and return a plain-text result for the model.

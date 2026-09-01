@@ -17,6 +17,7 @@ import time as time_module
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from ..kill_switch import is_paused
 from .checks import CHECKS
 from .config import HeartbeatConfig, load_heartbeat_config
 from .notices import add_notice
@@ -50,6 +51,9 @@ class Scheduler:
     def tick(self, now: datetime | None = None) -> None:
         """Run whatever's due, then persist. Safe to call as often as you
         like — a check that isn't due yet, or is disabled, is a no-op."""
+        if is_paused():
+            return  # the kill switch: hold all background action, quietly
+
         now = now or datetime.now(timezone.utc)
         changed = False
 

@@ -21,3 +21,19 @@ def print_pending_notices() -> None:
         print(f"\n[{notice.level}] ({notice.check_name}) {notice.text}")
     if notices:
         print()
+
+
+def confirm_via_input(tool_name: str, description: str, tool_input: dict) -> bool:
+    """The Tier 6 confirmation gate, for a typed terminal.
+
+    States plainly what's about to happen and waits for an explicit yes —
+    anything else (including Ctrl+C/EOF) is treated as a no, never as an
+    assumed yes.
+    """
+    print(f"\n[confirm] {tool_name}({tool_input}) — {description}")
+    try:
+        answer = input("Allow this? [y/N] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return False
+    return answer in ("y", "yes")

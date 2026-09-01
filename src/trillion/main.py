@@ -15,7 +15,7 @@ from __future__ import annotations
 from dotenv import load_dotenv
 
 from .brain import Brain
-from .cli_common import print_pending_notices
+from .cli_common import confirm_via_input, print_pending_notices
 from .identity import NAME
 from .provider import ProviderError
 
@@ -50,6 +50,7 @@ def main() -> None:
                 user_text,
                 on_token=lambda chunk: print(chunk, end="", flush=True),
                 on_tool_use=_print_tool_use,
+                confirm=confirm_via_input,
             )
             print()
         except ProviderError as exc:

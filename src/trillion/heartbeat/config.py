@@ -14,7 +14,10 @@ from pathlib import Path
 
 import yaml
 
-DEFAULT_CONFIG_PATH = os.environ.get("TRILLION_CONFIG_PATH", "config.yaml")
+def _default_config_path() -> str:
+    # Read fresh each call, not once at import — so setting the env var
+    # later (including in a test) is actually honored.
+    return os.environ.get("TRILLION_CONFIG_PATH", "config.yaml")
 
 
 @dataclass
@@ -50,7 +53,7 @@ def load_heartbeat_config(path: str | None = None) -> HeartbeatConfig:
     with no checks enabled) rather than raising — a heartbeat that can't
     find its config should do nothing, not crash the assistant.
     """
-    config_path = Path(path or DEFAULT_CONFIG_PATH)
+    config_path = Path(path or _default_config_path())
     if not config_path.exists():
         return HeartbeatConfig(
             poll_interval_seconds=30,

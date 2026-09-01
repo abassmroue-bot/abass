@@ -153,4 +153,7 @@ FORGET_FACT = Tool(
         "required": ["id"],
     },
     handler=forget_fact,
+    # Deleting a remembered fact is on the "never without asking" list
+    # (AGENT.md) — it must be confirmed before it runs.
+    requires_confirmation=True,
 )

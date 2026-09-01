@@ -12,7 +12,8 @@ from dataclasses import dataclass
 
 import anthropic
 
-DEFAULT_MODEL = os.environ.get("TRILLION_MODEL", "claude-sonnet-5")
+from . import config as app_config
+
 DEFAULT_MAX_TOKENS = int(os.environ.get("TRILLION_MAX_TOKENS", "1024"))
 
 
@@ -36,6 +37,7 @@ class Reply:
 
     content: list[dict]
     stop_reason: str | None
+    usage: dict | None = None  # {"input_tokens": int, "output_tokens": int}, when known
 
     @property
     def text(self) -> str:
@@ -90,7 +92,7 @@ def send(
     client = anthropic.Anthropic(api_key=api_key)
 
     kwargs: dict = dict(
-        model=DEFAULT_MODEL,
+        model=app_config.get_model_name(),
         max_tokens=DEFAULT_MAX_TOKENS,
         system=system_prompt,
         messages=messages,
@@ -113,4 +115,13 @@ def send(
     except anthropic.AnthropicError as exc:
         raise ProviderError(f"model provider error ({exc})") from exc
 
-    return Reply(content=_serialize_content(final.content), stop_reason=final.stop_reason)
+    usage = None
+    if getattr(final, "usage", None) is not None:
+        usage = {
+            "input_tokens": final.usage.input_tokens,
+            "output_tokens": final.usage.output_tokens,
+        }
+
+    return Reply(
+        content=_serialize_content(final.content), stop_reason=final.stop_reason, usage=usage
+    )

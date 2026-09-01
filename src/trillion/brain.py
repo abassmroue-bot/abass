@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from . import provider
+from . import audit, provider, usage
 from .identity import build_system_prompt
 from .tools import ToolRegistry, build_registry
 from .tools.memory import load_facts
@@ -19,6 +19,14 @@ from .tools.memory import load_facts
 # handful of tool calls. If the model is stuck calling tools back-to-back
 # past this, something's wrong — surface it instead of looping forever.
 MAX_TOOL_ROUNDS = 8
+
+# What a tool result says when the user didn't confirm a consequential
+# action — fed back to the model so it can react (explain, ask something
+# else) instead of the conversation just going quiet.
+DECLINED_MESSAGE = (
+    "The user did not confirm this action, so it was not performed. "
+    "Do not imply that it happened, and do not retry it without asking again."
+)
 
 
 class Brain:
@@ -40,6 +48,7 @@ class Brain:
         user_text: str,
         on_token: Callable[[str], None] | None = None,
         on_tool_use: Callable[[str, dict, str], None] | None = None,
+        confirm: Callable[[str, str, dict], bool] | None = None,
     ) -> str:
         """Send `user_text` plus the running history to the model.
 
@@ -53,9 +62,17 @@ class Brain:
         as if the turn never happened.
 
         `on_token` streams reply text as it's generated. `on_tool_use`,
-        if given, is called after each tool finishes running, as
-        `(tool_name, tool_input, result_text)` — handy for showing what
-        the assistant is doing while it does it.
+        if given, is called after each tool finishes running (or is
+        declined), as `(tool_name, tool_input, result_text)`.
+
+        `confirm`, if given, is called as `confirm(tool_name, description,
+        tool_input) -> bool` whenever a tool that requires confirmation
+        (`self.tools.requires_confirmation`) is about to run — the caller
+        must state plainly what's about to happen and get an explicit
+        yes/no from the user before this returns. If `confirm` isn't
+        given at all, consequential actions default to declined rather
+        than silently running — the same "safe default, never assume
+        permission" rule the heartbeat follows.
         """
         working_history = self.history + [{"role": "user", "content": user_text}]
         tool_specs = self.tools.specs() or None
@@ -65,6 +82,8 @@ class Brain:
             reply = provider.send(
                 working_history, system_prompt, tools=tool_specs, on_token=on_token
             )
+            if reply.usage:
+                usage.record_usage(reply.usage["input_tokens"], reply.usage["output_tokens"])
             working_history.append({"role": "assistant", "content": reply.content})
 
             if not reply.tool_uses:
@@ -73,7 +92,7 @@ class Brain:
 
             tool_results = []
             for call in reply.tool_uses:
-                result_text = self.tools.run(call["name"], call["input"])
+                result_text = self._run_tool(call["name"], call["input"], confirm)
                 if on_tool_use is not None:
                     on_tool_use(call["name"], call["input"], result_text)
                 tool_results.append(
@@ -88,3 +107,21 @@ class Brain:
         raise provider.ProviderError(
             "gave up after too many tool-call rounds without a final reply"
         )
+
+    def _run_tool(
+        self,
+        name: str,
+        tool_input: dict,
+        confirm: Callable[[str, str, dict], bool] | None,
+    ) -> str:
+        if self.tools.requires_confirmation(name):
+            tool = self.tools.get(name)
+            description = tool.description if tool else ""
+            granted = confirm(name, description, tool_input) if confirm is not None else False
+            audit.log_event("confirmation", tool=name, input=tool_input, granted=granted)
+            if not granted:
+                return DECLINED_MESSAGE
+
+        result_text = self.tools.run(name, tool_input)
+        audit.log_event("tool_call", tool=name, input=tool_input, result=result_text[:500])
+        return result_text

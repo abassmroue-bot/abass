@@ -5,9 +5,10 @@ The core of a voice-first AI assistant, built tier by tier. See
 
 ## Status
 
-Tiers 1–5 are implemented (text brain, tools, push-to-talk voice,
-durable memory, the proactive heartbeat). See `AGENT.md` for the full
-tier roadmap, what's verified, and what's next.
+The full baseline (Tiers 1–6) is implemented: text brain, tools,
+push-to-talk voice, durable memory, the proactive heartbeat, and the
+safety rails. See `AGENT.md` for the full tier roadmap, what's verified,
+and what's next.
 
 ## Setup
 
@@ -72,6 +73,33 @@ pending at startup — and stays in the inbox until dismissed, via the
 `list_notices`/`dismiss_notice` tools ("what's pending?" / "dismiss
 that"). Non-urgent notices wait out quiet hours; nothing is ever fired
 and forgotten.
+
+## Safety rails (Tier 6)
+
+- **Confirmation gate.** A tool marked `requires_confirmation=True` (or
+  listed under `tools.require_confirmation` in `config.yaml`) never runs
+  silently — the harness states plainly what it's about to do and waits
+  for an explicit yes, on every conversation surface (text, voice, and
+  any future heartbeat-initiated action). No `confirm` callback wired up
+  at all (e.g. in tests) means it defaults to declined, never to allowed.
+  `forget_fact` is gated this way today, since deleting a memory is on
+  the "never without asking" list in `AGENT.md`.
+- **Config over hardcoded values.** `config.yaml`'s `model.name` and
+  `tools.require_confirmation` join the heartbeat settings already there
+  — tunable without a code change. `TRILLION_MODEL` still overrides the
+  model name if set. Config can only *widen* the confirmation gate, never
+  narrow it below what a tool's own code already requires.
+- **Audit trail.** Every tool call and every confirmation decision is
+  appended to `data/audit.log` (one JSON object per line) — what ran,
+  what was asked, what was granted or declined, and when. `data/usage.json`
+  keeps a running token-usage tally so a runaway loop is visible early.
+- **Kill switch.** `python -m trillion.kill_switch pause "reason"` stops
+  all heartbeat activity immediately without touching anything else —
+  the conversation still works normally. `... resume` re-enables it,
+  `... status` checks it.
+- **Data, not instructions.** The system prompt tells the model that
+  anything a tool returns (notes, search results, anything read from
+  outside the conversation) is data to observe, never a command to obey.
 
 ## Tests
 

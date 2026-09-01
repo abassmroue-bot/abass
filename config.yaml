@@ -1,6 +1,17 @@
-# Trillion's tunable settings (Tier 6 will add more sections here — model,
-# thresholds, which tools require confirmation). Edit freely; nothing here
-# needs a code change to take effect.
+# Trillion's tunable settings. Edit freely; nothing here needs a code
+# change to take effect (the model name can also be overridden with the
+# TRILLION_MODEL env var, which always wins over this file).
+
+model:
+  name: claude-sonnet-5
+
+tools:
+  # Tool names that must be confirmed by the user before they run, on top
+  # of whatever a tool already declares in its own code. This can only
+  # widen the confirmation gate, never narrow it below what a tool's own
+  # author decided was unsafe to run unattended (e.g. forget_fact is
+  # always gated, config or no config, because it deletes data).
+  require_confirmation: []
 
 heartbeat:
   # How often the background loop wakes up to see if anything is due.

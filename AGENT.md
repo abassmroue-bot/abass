@@ -214,4 +214,84 @@ Non-urgent notices respect quiet hours; the schedule survives restarts.
       need Tier 6's confirmation gate before acting — there's nothing
       in this build yet that autonomously *does* something consequential,
       only checks that *notice* things.
-- [ ] Tier 6 — safety rails, config, audit log, kill switch
+- [x] Tier 6 — safety rails, config, audit log, kill switch. The
+      confirmation gate (`Brain._run_tool` in `brain.py`) sits between the
+      model choosing a tool and the tool actually running: any tool with
+      `requires_confirmation=True` — or named in `config.yaml`'s
+      `tools.require_confirmation` — calls the `confirm` callback with
+      the tool name, its description, and its input, and only runs if
+      that returns `True`. No `confirm` given at all (e.g. a test, or a
+      future automated caller) defaults to declined, never to allowed —
+      the same "safe default" posture as the heartbeat's own rules.
+      `forget_fact` (Tier 4) is gated this way today since deleting a
+      remembered fact is a real, already-built instance of "deletes
+      data" from the never-list; both CLIs implement `confirm` (text via
+      typed y/n in `cli_common.py`; voice speaks the question via TTS
+      then still takes the answer as typed input, deliberately, since a
+      misheard "no" on a delete is a worse failure mode than one extra
+      keypress). A decline is fed back to the model as a plain
+      tool-result explaining the action wasn't performed, never silently
+      dropped. Declining doesn't touch anything else, and approving one
+      action never pre-approves the next — every gated call re-invokes
+      `confirm` fresh (verified by test).
+      `config.py` centralizes app-wide settings (distinct from
+      `heartbeat/config.py`): `model.name` (env `TRILLION_MODEL` still
+      wins if set) and `tools.require_confirmation`, which can only
+      *widen* the gate — a tool that hardcodes `requires_confirmation=True`
+      can't be un-gated from config, only more tools can be added to it.
+      `audit.py` appends one JSON line per tool call and per confirmation
+      decision to `data/audit.log` — never raises, so a logging failure
+      can't take the assistant down with it. `usage.py` keeps a running
+      *token* tally (not a dollar estimate, to avoid stating a pricing
+      figure that could be wrong or go stale) in `data/usage.json`.
+      `kill_switch.py` is a single flag file (`data/PAUSED`) with its own
+      tiny CLI (`python -m trillion.kill_switch pause|resume|status`);
+      the heartbeat scheduler checks it first thing in `tick()` and
+      no-ops entirely while paused — the conversation loop doesn't touch
+      it at all, so talking to the assistant keeps working exactly as
+      before while proactive behavior is held. The system prompt
+      (`identity.py`) now permanently instructs the model to treat
+      anything a tool returns as data to observe, never as instructions
+      to obey, and to flag anything that reads like a planted command
+      rather than act on it.
+      Verified: 20 new unit tests (config precedence and the env-var-
+      read-at-import-time bug this caught and fixed — the same class of
+      bug `TRILLION_MODEL` had in Tier 1, now fixed in both `config.py`
+      and `heartbeat/config.py`; the gate's grant/decline/no-callback/
+      re-asked-every-time behavior; the audit log; the usage tally; the
+      kill switch, including "heartbeat paused, conversation still
+      works"). Beyond mocks, every Tier 6 verify step was run for real
+      against the filesystem: (1) a real `forget_fact` call declined
+      through the actual gate, with the fact still present after; (2)
+      the same call granted, with the fact actually gone and both
+      decisions correctly ordered in `data/audit.log`; (3) widening the
+      gate to a second tool via a config edit alone, with no code
+      change, confirmed by re-building the registry; (4) confirming an
+      *empty* `require_confirmation` list in config can't strip the
+      gate off `forget_fact`, proving the "widen, never narrow" rule
+      actually holds; (5) the kill switch's real CLI — paused, confirmed
+      a due heartbeat check produced nothing, confirmed the text CLI
+      still ran a full turn while paused, then resumed and confirmed the
+      same check fired. Not yet verified: a live model actually
+      encountering the prompt-injection instruction and choosing to flag
+      it rather than obey — that's a behavioral property of the model
+      itself, not something a unit test can establish, and it needs the
+      same `ANTHROPIC_API_KEY` this build environment doesn't have.
+      Also not built: an actual "send message" or "spend money" tool to
+      exercise those specific never-list categories through the gate —
+      only "delete data" (`forget_fact`) is a real, implemented action
+      today; the mechanism covers the others the moment such a tool
+      exists, by declaring `requires_confirmation=True` on it.
+
+This closes the baseline the project's build spec described (Tiers
+0–6). See "Where to go after the baseline" for natural next steps — more
+tools, sub-agents, a UI, an always-on host — and note the standing gap
+across every tier above: nothing in this build has been exercised
+against a live Claude conversation, because no `ANTHROPIC_API_KEY` was
+available in the environment it was built in. Unlike the ElevenLabs/
+Deepgram gap in Tier 3, this one isn't a network-policy block —
+`api.anthropic.com` is reachable from here — so providing a real key is
+the single highest-value next step: it would let a fresh session
+actually verify the model's behavior (tool selection, memory recall,
+confirmation-seeking, and the prompt-injection instruction above) rather
+than just the harness around it.

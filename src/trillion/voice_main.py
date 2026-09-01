@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 
 from .audio_io import record_while_held
 from .brain import Brain
-from .cli_common import print_pending_notices
+from .cli_common import confirm_via_input, print_pending_notices
 from .identity import NAME
 from .provider import ProviderError
 from .stt import STTError, transcribe
@@ -31,6 +31,21 @@ from .tts import TTSError, speak
 
 def _print_tool_use(name: str, tool_input: dict, result: str) -> None:
     print(f"\n  [using {name}({tool_input}) -> {result}]")
+
+
+def _confirm(tool_name: str, description: str, tool_input: dict) -> bool:
+    """The confirmation gate for the voice CLI.
+
+    Speaks the question aloud so you don't have to be looking at the
+    screen, but takes the actual yes/no as typed input — deliberately,
+    for a safety-critical decision a reliable typed answer beats another
+    round of hold-to-talk and transcription that could be misheard.
+    """
+    try:
+        speak(f"I want to {description} Should I go ahead?")
+    except TTSError:
+        pass  # the confirmation still works via the printed prompt below
+    return confirm_via_input(tool_name, description, tool_input)
 
 
 def main() -> None:
@@ -72,7 +87,9 @@ def main() -> None:
 
         print(f"{NAME}: ", end="", flush=True)
         try:
-            reply_text = brain.take_turn(user_text, on_tool_use=_print_tool_use)
+            reply_text = brain.take_turn(
+                user_text, on_tool_use=_print_tool_use, confirm=_confirm
+            )
             print(reply_text)
         except ProviderError as exc:
             print(f"\n[trouble reaching {NAME} right now: {exc}]")
