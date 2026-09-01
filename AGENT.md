@@ -115,7 +115,31 @@ Non-urgent notices respect quiet hours; the schedule survives restarts.
       against a live model — same `ANTHROPIC_API_KEY` gap as Tier 1.
       Drafting messages and web lookups (the other two named capabilities)
       are not built yet — natural next tools to add to the registry.
-- [ ] Tier 3 — voice (push-to-talk)
+- [x] Tier 3 — voice, push-to-talk (`src/trillion/tts.py`, `stt.py`,
+      `audio_io.py`, `voice_main.py`; run with `python -m
+      trillion.voice_main`). ElevenLabs for TTS and Deepgram for STT,
+      each behind their own thin seam; `voice_main.py` wraps the exact
+      same `Brain`/tool registry as the text CLI, only changing how a
+      turn arrives (recorded speech, transcribed) and leaves (spoken
+      aloud). Verified: unit tests for both seams (mocked network calls)
+      and for WAV encoding; the voice CLI starts cleanly and fails
+      gracefully with a clear message when there's no display (push-to-
+      talk key detection needs one) or no mic — same crash-free posture
+      as Tiers 1–2. **Not verified live**: this build ran in a sandboxed
+      cloud environment whose network policy blocks both
+      `api.elevenlabs.io` and `api.deepgram.com` outright (confirmed via
+      the proxy status endpoint — a 403 at the CONNECT level, not an
+      auth error), and it has no microphone/speakers/display regardless.
+      An ElevenLabs key was provided but a live synthesis call could not
+      be made from here for that reason. **Before trusting this tier,
+      run `python -m trillion.voice_main` on your own machine** with
+      both keys set — that's the real Tier 3 verify step (hold SPACE,
+      ask something that needs a tool, hear the spoken answer, confirm
+      the transcript matches what you said).
+      Known gap: playback is currently synchronous, so starting a new
+      turn while Trillion is still speaking (the "let me interrupt it"
+      requirement) isn't implemented yet — it needs real audio hardware
+      to get right, not guessed at blind.
 - [ ] Tier 4 — durable memory
 - [ ] Tier 5 — heartbeat / proactivity
 - [ ] Tier 6 — safety rails, config, audit log, kill switch
