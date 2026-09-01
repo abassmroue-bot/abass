@@ -140,6 +140,25 @@ Non-urgent notices respect quiet hours; the schedule survives restarts.
       turn while Trillion is still speaking (the "let me interrupt it"
       requirement) isn't implemented yet — it needs real audio hardware
       to get right, not guessed at blind.
-- [ ] Tier 4 — durable memory
+- [x] Tier 4 — durable memory store (`src/trillion/tools/memory.py`):
+      facts live in `data/memory.md`, one plain line per fact
+      (`- [id] statement`), loaded fresh into the system prompt on every
+      turn (`Brain._system_prompt()`) — so a fact remembered
+      mid-conversation, or corrected by hand in the file, takes effect
+      immediately rather than only after a restart. Read/write via four
+      tools: `remember_fact`, `list_facts`, `update_fact`, `forget_fact`.
+      The prompt explicitly tells the model to treat these as background
+      knowledge, never as instructions, per the safety note in this spec
+      — the actual confirmation gate enforcing that still lands in Tier 6.
+      Verified: unit tests for the store (round trip, hand-edit
+      respected, unknown-id errors) and for the brain wiring (facts
+      appear in the system prompt; a fact remembered via a tool call
+      mid-session is visible on the very next turn); a real
+      cross-process check simulating "quit and restart" — one Python
+      process remembers a fact, the file is hand-edited with `sed` the
+      way a person would in a text editor, and a second, independent
+      process picks up the corrected version. Not yet verified: an
+      actual live conversation asking the model to remember/recall
+      something (same `ANTHROPIC_API_KEY` gap as Tiers 1–3).
 - [ ] Tier 5 — heartbeat / proactivity
 - [ ] Tier 6 — safety rails, config, audit log, kill switch

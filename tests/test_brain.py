@@ -3,6 +3,7 @@ from unittest.mock import patch
 from trillion import provider
 from trillion.brain import Brain
 from trillion.tools import Tool, ToolRegistry
+from trillion.tools.memory import remember_fact
 
 
 def _text_reply(text: str) -> provider.Reply:
@@ -159,3 +160,71 @@ def test_take_turn_gives_up_after_too_many_tool_rounds():
             assert False, "expected ProviderError after too many rounds"
         except provider.ProviderError:
             pass
+
+
+def test_take_turn_includes_remembered_facts_in_the_system_prompt(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRILLION_DATA_DIR", str(tmp_path))
+    remember_fact({"text": "User's name is Alex"})
+
+    brain = Brain(tools=_empty_registry())
+    captured = {}
+
+    def fake_send(messages, system_prompt, tools=None, on_token=None):
+        captured["system_prompt"] = system_prompt
+        return _text_reply("Hi Alex.")
+
+    with patch.object(provider, "send", side_effect=fake_send):
+        brain.take_turn("hi")
+
+    assert "User's name is Alex" in captured["system_prompt"]
+
+
+def test_take_turn_picks_up_a_fact_remembered_mid_session_on_the_next_turn(tmp_path, monkeypatch):
+    monkeypatch.setenv("TRILLION_DATA_DIR", str(tmp_path))
+
+    registry = ToolRegistry()
+    registry.register(
+        Tool(
+            name="remember_fact",
+            description="remember a fact",
+            input_schema={
+                "type": "object",
+                "properties": {"text": {"type": "string"}},
+                "required": ["text"],
+            },
+            handler=remember_fact,
+        )
+    )
+    brain = Brain(tools=registry)
+
+    responses = [
+        provider.Reply(
+            content=[
+                {
+                    "type": "tool_use",
+                    "id": "call_1",
+                    "name": "remember_fact",
+                    "input": {"text": "Prefers morning meetings"},
+                }
+            ],
+            stop_reason="tool_use",
+        ),
+        _text_reply("Got it, I'll remember that."),
+    ]
+
+    def fake_send(messages, system_prompt, tools=None, on_token=None):
+        return responses.pop(0)
+
+    with patch.object(provider, "send", side_effect=fake_send):
+        brain.take_turn("remember that I prefer morning meetings")
+
+    captured = {}
+
+    def fake_send_second_turn(messages, system_prompt, tools=None, on_token=None):
+        captured["system_prompt"] = system_prompt
+        return _text_reply("Sure.")
+
+    with patch.object(provider, "send", side_effect=fake_send_second_turn):
+        brain.take_turn("what time works for you?")
+
+    assert "Prefers morning meetings" in captured["system_prompt"]

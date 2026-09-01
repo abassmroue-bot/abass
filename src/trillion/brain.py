@@ -13,6 +13,7 @@ from collections.abc import Callable
 from . import provider
 from .identity import build_system_prompt
 from .tools import ToolRegistry, build_registry
+from .tools.memory import load_facts
 
 # A safety valve, not a normal path: real conversations resolve in a
 # handful of tool calls. If the model is stuck calling tools back-to-back
@@ -25,8 +26,14 @@ class Brain:
 
     def __init__(self, tools: ToolRegistry | None = None) -> None:
         self.tools = tools if tools is not None else build_registry()
-        self.system_prompt = build_system_prompt(tools_available=bool(self.tools.specs()))
         self.history: list[dict] = []
+
+    def _system_prompt(self) -> str:
+        """Built fresh each turn so a fact remembered — or hand-edited in
+        memory.md — takes effect on the very next turn, not just after a
+        restart."""
+        facts = [fact["text"] for fact in load_facts()]
+        return build_system_prompt(tools_available=bool(self.tools.specs()), facts=facts)
 
     def take_turn(
         self,
@@ -52,10 +59,11 @@ class Brain:
         """
         working_history = self.history + [{"role": "user", "content": user_text}]
         tool_specs = self.tools.specs() or None
+        system_prompt = self._system_prompt()
 
         for _ in range(MAX_TOOL_ROUNDS):
             reply = provider.send(
-                working_history, self.system_prompt, tools=tool_specs, on_token=on_token
+                working_history, system_prompt, tools=tool_specs, on_token=on_token
             )
             working_history.append({"role": "assistant", "content": reply.content})
 

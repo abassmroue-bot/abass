@@ -5,6 +5,7 @@ module and registering it in `build_registry()` below — never editing the
 conversation loop in `trillion.brain`.
 """
 
+from .memory import FORGET_FACT, LIST_FACTS, REMEMBER_FACT, UPDATE_FACT
 from .notes import SEARCH_NOTES
 from .registry import Tool, ToolRegistry
 from .reminders import ADD_REMINDER, COMPLETE_REMINDER, LIST_REMINDERS
@@ -12,7 +13,16 @@ from .reminders import ADD_REMINDER, COMPLETE_REMINDER, LIST_REMINDERS
 
 def build_registry() -> ToolRegistry:
     registry = ToolRegistry()
-    for tool in (ADD_REMINDER, LIST_REMINDERS, COMPLETE_REMINDER, SEARCH_NOTES):
+    for tool in (
+        ADD_REMINDER,
+        LIST_REMINDERS,
+        COMPLETE_REMINDER,
+        SEARCH_NOTES,
+        REMEMBER_FACT,
+        LIST_FACTS,
+        UPDATE_FACT,
+        FORGET_FACT,
+    ):
         registry.register(tool)
     return registry
 

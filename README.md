@@ -5,8 +5,9 @@ The core of a voice-first AI assistant, built tier by tier. See
 
 ## Status
 
-Tiers 1–3 are implemented (text brain, tools, push-to-talk voice). See
-`AGENT.md` for the full tier roadmap, what's verified, and what's next.
+Tiers 1–4 are implemented (text brain, tools, push-to-talk voice, durable
+memory). See `AGENT.md` for the full tier roadmap, what's verified, and
+what's next.
 
 ## Setup
 
@@ -38,6 +39,16 @@ microphone, and a graphical session (the keyboard-hold detection needs
 one). Press enter, then hold SPACE and speak; release to send. The
 transcript is printed next to the reply so you can tell the ears and the
 brain apart while debugging.
+
+## Memory (Tier 4)
+
+Durable facts about you live in `data/memory.md` (created on first use;
+git-ignored) — one plain line per fact, e.g. `- [ab12cd34] Prefers
+morning meetings.` Open it in any text editor to review, fix, or delete
+a fact by hand; Trillion re-reads it every turn, so an edit takes effect
+immediately, no restart needed. It's also updated through conversation
+via the `remember_fact`, `list_facts`, `update_fact`, and `forget_fact`
+tools ("remember that I prefer morning meetings").
 
 ## Tests
 
