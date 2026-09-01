@@ -7,6 +7,7 @@ conversation loop in `trillion.brain`.
 
 from .memory import FORGET_FACT, LIST_FACTS, REMEMBER_FACT, UPDATE_FACT
 from .notes import SEARCH_NOTES
+from .notices_tool import DISMISS_NOTICE, LIST_NOTICES
 from .registry import Tool, ToolRegistry
 from .reminders import ADD_REMINDER, COMPLETE_REMINDER, LIST_REMINDERS
 
@@ -22,6 +23,8 @@ def build_registry() -> ToolRegistry:
         LIST_FACTS,
         UPDATE_FACT,
         FORGET_FACT,
+        LIST_NOTICES,
+        DISMISS_NOTICE,
     ):
         registry.register(tool)
     return registry

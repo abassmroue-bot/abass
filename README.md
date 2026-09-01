@@ -5,9 +5,9 @@ The core of a voice-first AI assistant, built tier by tier. See
 
 ## Status
 
-Tiers 1–4 are implemented (text brain, tools, push-to-talk voice, durable
-memory). See `AGENT.md` for the full tier roadmap, what's verified, and
-what's next.
+Tiers 1–5 are implemented (text brain, tools, push-to-talk voice,
+durable memory, the proactive heartbeat). See `AGENT.md` for the full
+tier roadmap, what's verified, and what's next.
 
 ## Setup
 
@@ -49,6 +49,29 @@ a fact by hand; Trillion re-reads it every turn, so an edit takes effect
 immediately, no restart needed. It's also updated through conversation
 via the `remember_fact`, `list_facts`, `update_fact`, and `forget_fact`
 tools ("remember that I prefer morning meetings").
+
+## Heartbeat (Tier 5)
+
+```bash
+python -m trillion.heartbeat_main
+```
+
+Runs independently of the CLIs — leave it running (e.g. as a systemd
+service later) whether or not a conversation is open. What to check, how
+often, and quiet hours all live in `config.yaml`, not in code. Two
+checks ship by default:
+
+- `notes_watch` — surfaces an interruption if a configured phrase (default
+  `URGENT`) shows up in your notes. Good for exercising the heartbeat end
+  to end: add a matching line to a note and watch it get noticed.
+- `open_reminders_digest` — a quiet, log-only summary of open reminders;
+  produces nothing when there's nothing open.
+
+Anything surfaced is held until you're back — both CLIs print what's
+pending at startup — and stays in the inbox until dismissed, via the
+`list_notices`/`dismiss_notice` tools ("what's pending?" / "dismiss
+that"). Non-urgent notices wait out quiet hours; nothing is ever fired
+and forgotten.
 
 ## Tests
 

@@ -37,6 +37,11 @@ def _load() -> list[dict]:
         return []
 
 
+def load_reminders() -> list[dict]:
+    """Public read accessor — used by the heartbeat's reminders digest check."""
+    return _load()
+
+
 def _save(reminders: list[dict]) -> None:
     _store_path().write_text(json.dumps(reminders, indent=2))
 

@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 
 from .audio_io import record_while_held
 from .brain import Brain
+from .cli_common import print_pending_notices
 from .identity import NAME
 from .provider import ProviderError
 from .stt import STTError, transcribe
@@ -37,6 +38,7 @@ def main() -> None:
     brain = Brain()
 
     print(f"{NAME} is ready. Hold SPACE and speak, release when done. Ctrl+C to quit.\n")
+    print_pending_notices()
 
     while True:
         try:

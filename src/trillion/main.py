@@ -15,6 +15,7 @@ from __future__ import annotations
 from dotenv import load_dotenv
 
 from .brain import Brain
+from .cli_common import print_pending_notices
 from .identity import NAME
 from .provider import ProviderError
 
@@ -28,6 +29,7 @@ def main() -> None:
     brain = Brain()
 
     print(f"{NAME} is ready. Type a message, or /exit to quit.\n")
+    print_pending_notices()
 
     while True:
         try:

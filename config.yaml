@@ -1,0 +1,32 @@
+# Trillion's tunable settings (Tier 6 will add more sections here — model,
+# thresholds, which tools require confirmation). Edit freely; nothing here
+# needs a code change to take effect.
+
+heartbeat:
+  # How often the background loop wakes up to see if anything is due.
+  poll_interval_seconds: 30
+
+  # Non-urgent notices wait for this window to end before interrupting you.
+  # 24-hour local time; wraps past midnight (e.g. 22:00 -> 07:00 is fine).
+  quiet_hours:
+    start: "22:00"
+    end: "07:00"
+
+  # Each check: how often it runs, and its own params. Unknown check
+  # names are ignored rather than crashing the loop. Add a new check by
+  # writing one function in trillion/heartbeat/checks.py, registering it
+  # in CHECKS, then listing it here.
+  checks:
+    - name: notes_watch
+      enabled: true
+      interval_seconds: 30
+      params:
+        # Surfaces an interruption if this phrase shows up anywhere in
+        # your notes. Handy for testing the heartbeat end to end: add a
+        # line containing this phrase to a note and watch it get noticed.
+        query: "URGENT"
+
+    - name: open_reminders_digest
+      enabled: true
+      interval_seconds: 300
+      params: {}

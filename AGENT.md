@@ -160,5 +160,58 @@ Non-urgent notices respect quiet hours; the schedule survives restarts.
       process picks up the corrected version. Not yet verified: an
       actual live conversation asking the model to remember/recall
       something (same `ANTHROPIC_API_KEY` gap as Tiers 1–3).
-- [ ] Tier 5 — heartbeat / proactivity
+- [x] Tier 5 — heartbeat / proactivity (`src/trillion/heartbeat/`,
+      `config.yaml`; run with `python -m trillion.heartbeat_main`). A
+      single-threaded scheduler (`scheduler.py`) runs each enabled check
+      on its own interval from `config.yaml` — what to check and how
+      often is config, never code. Two checks ship: `notes_watch`
+      (interrupt-level; surfaces if a configured phrase appears in
+      notes) and `open_reminders_digest` (log-level; a quiet summary,
+      silent when there's nothing open). Findings go into a persistent,
+      dismissible inbox (`notices.py`) with three levels — `log` (calm
+      log only, never interrupts), `interrupt` (held during quiet hours,
+      delivered once they end), `critical` (bypasses quiet hours). Both
+      CLIs print anything pending at startup (`cli_common.py`), and the
+      `list_notices`/`dismiss_notice` tools let you ask "what's
+      pending?" or dismiss one mid-conversation — proactivity surfaces
+      through the same shared agent core, not a separate UI. An
+      unresolved finding is deduped (hashed against the last result) so
+      it notifies once per distinct occurrence, not every tick — a
+      literal implementation of "quiet by default, earns interruptions."
+      Each check's next-due time is persisted to
+      `data/heartbeat_state.json`, so a restart resumes the schedule
+      instead of refiring everything. A check that throws is caught and
+      logged without taking the loop, or other checks, down.
+      "Never block forever waiting on a human" is satisfied by
+      construction rather than by a specific test: every check is a
+      synchronous, side-effect-free function that returns a result or
+      `None` — none of them are structured to wait on a human reply, so
+      there's nothing that can hang. (An actual action needing
+      confirmation, e.g. "send this," is Tier 6's confirmation gate,
+      which doesn't exist yet — nothing today would trigger this path
+      for real.)
+      Verified: unit tests for config parsing, the notice inbox (add/
+      list/dismiss, quiet-hours holding and release including the
+      past-midnight wraparound, critical bypassing quiet hours), both
+      checks, and the scheduler (runs when due, skips when not, dedupes
+      an unresolved finding, survives a bad check, ignores an unknown
+      check name, persists state). Beyond mocks: a full real-filesystem
+      run across five separate Python processes (genuine restarts, not
+      just fresh objects) reproducing the exact Tier 5 verify script —
+      (1) a quiet tick with nothing notable, (2) the condition triggered
+      on purpose and caught by a fresh process, (3) a repeat tick during
+      quiet hours that doesn't duplicate-notify, (4) the "CLI" checked
+      at 2am and correctly shown nothing (held), (5) reopened at 8am and
+      the held notice appears — then dismissed via the same
+      `dismiss_notice` tool the model would call, and a further restart
+      confirmed the schedule resumed rather than refiring. Also
+      confirmed both CLIs are silent when nothing is pending and
+      correctly print a real pending notice at startup when one exists.
+      Not yet verified: a live model conversation actually deciding to
+      call `list_notices`/`dismiss_notice` on its own, or reacting to a
+      notice printed at startup (same `ANTHROPIC_API_KEY` gap as
+      Tiers 1–4). Also not built: an actual proactive check that would
+      need Tier 6's confirmation gate before acting — there's nothing
+      in this build yet that autonomously *does* something consequential,
+      only checks that *notice* things.
 - [ ] Tier 6 — safety rails, config, audit log, kill switch
