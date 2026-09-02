@@ -78,8 +78,11 @@ heartbeat:
         timeframe: "M15"     # MT5 timeframe suffix: M1, M5, M15, M30, H1, H4, D1, ...
         lookback_candles: 200
         strategy: "moving_average_cross"
-        fast_period: 20
-        slow_period: 50
+        # Shortened from 20/50 so crossovers happen more often -- more
+        # trades, but each is a noisier/lower-quality signal than the
+        # longer periods gave.
+        fast_period: 10
+        slow_period: 30
         lot_size: 0.01
         stop_loss_pips: 100
         take_profit_pips: 150
