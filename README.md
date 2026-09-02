@@ -94,6 +94,17 @@ checks ship by default:
   to end: add a matching line to a note and watch it get noticed.
 - `open_reminders_digest` — a quiet, log-only summary of open reminders;
   produces nothing when there's nothing open.
+- `gold_signal` — fetches recent gold/USD (`XAUUSD=X`) price candles and
+  runs a swappable strategy (`src/trillion/trading/strategy.py`) over
+  them, surfacing an interrupt-level notice on a fresh BUY/SELL signal.
+  **It only ever reports a signal — it never places a trade.** Off by
+  default (`enabled: false` in `config.yaml`) since, unlike the other
+  checks, it needs live network access to Yahoo Finance; flip it on once
+  you've confirmed that reaches from your machine. The shipped strategy
+  (`moving_average_cross`) is a placeholder starting point — swap in your
+  own by adding a class to `strategy.py` and registering it in
+  `STRATEGIES`, then pointing `params.strategy` at its name in
+  `config.yaml`.
 
 Anything surfaced is held until you're back — both CLIs print what's
 pending at startup — and stays in the inbox until dismissed, via the

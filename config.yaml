@@ -41,3 +41,20 @@ heartbeat:
       enabled: true
       interval_seconds: 300
       params: {}
+
+    - name: gold_signal
+      # Off by default: this one reaches out to Yahoo Finance over the
+      # network on every run, unlike the other (local-only) checks above.
+      # Flip to true once you've confirmed that reaches from your machine.
+      enabled: false
+      interval_seconds: 900
+      params:
+        symbol: "XAUUSD=X"   # gold/USD; yfinance also accepts "GC=F" for gold futures
+        interval: "15m"
+        lookback: "5d"
+        # Which strategy.py class computes the signal (see STRATEGIES in
+        # src/trillion/trading/strategy.py) — swap in a new one by adding
+        # a class there and changing this name, no other code change.
+        strategy: "moving_average_cross"
+        fast_period: 20
+        slow_period: 50

@@ -331,6 +331,67 @@ Tier 5 — the mechanism is proven, just not with a model in the loop
 reacting to a heartbeat-surfaced notice via `list_notices`/
 `dismiss_notice` in a live chat. That's a reasonable next thing to try.
 
+## Update: gold/USD trading-signal heartbeat check
+
+A new built-in heartbeat check, `gold_signal` (`src/trillion/trading/`,
+registered in `src/trillion/heartbeat/checks.py`), fetches recent
+gold/USD (`XAUUSD=X`) OHLC candles via yfinance and runs a strategy over
+them to surface a BUY/SELL notice through the same notice inbox as every
+other check — it never places a trade, it only notices and reports, the
+same "quiet by default, only actionable findings interrupt" rule as
+`notes_watch` and `open_reminders_digest`. HOLD (including "not enough
+history yet" or an unchanged existing trend) produces nothing.
+
+This is a scaffold, not a finished trading system, matching what was
+actually asked for: a framework with one placeholder strategy that's
+meant to be swapped, not a tuned strategy. `src/trillion/trading/`:
+- `data_feed.py` — `Candle` + `fetch_candles(symbol, interval, lookback)`,
+  the only place that talks to a market-data provider (yfinance, imported
+  lazily). Raises on an empty/failed fetch rather than returning
+  silently-wrong data; the scheduler already catches and logs a check
+  that raises, so a fetch failure shows up in the log, not silently.
+- `strategy.py` — `Signal` (BUY/SELL/HOLD), a `Strategy` protocol, and
+  `MovingAverageCrossStrategy` (SMA fast/slow crossover) as the shipped
+  placeholder, registered in `STRATEGIES` by name. Add a real strategy by
+  writing a class with an `evaluate(candles) -> Signal` method and adding
+  it to that dict — the same "write it, register it, name it in
+  `config.yaml`" extension point `checks.py`/`CHECKS` already used.
+
+`config.yaml` gets one new check entry, `gold_signal`, with
+`enabled: false` — unlike the other two checks, this one reaches out to
+Yahoo Finance over the network on every run rather than reading local
+files, so it's opt-in until you've confirmed that reaches from your own
+machine. Its params (`symbol`, `interval`, `lookback`, `strategy`, and
+the chosen strategy's own kwargs like `fast_period`/`slow_period`) are
+all config, no code change needed to retune.
+
+Verified: unit tests (`tests/test_trading.py`) for the strategy's SMA-
+crossover math (holds without enough history, a fresh bullish cross, a
+fresh bearish cross, no re-fire on an already-established trend, the
+fast/slow-period guard) and for the check function itself (an unknown
+configured strategy name degrades to a quiet log entry instead of
+crashing; a fetch is wired to `fetch_candles` — monkeypatched in tests to
+avoid a real network call — via `checks.gold_signal_check`; the check is
+registered in `CHECKS`). Also confirmed by hand: `load_heartbeat_config()`
+parses the new `gold_signal` entry correctly (name, `enabled: false`,
+interval, and every param) and the full suite (66 tests, `test_voice.py`
+excluded — see below) passes together with the pre-existing ones.
+
+Not yet verified: a real fetch. This build environment's outbound network
+policy blocks Yahoo Finance outright — `fetch_candles("XAUUSD=X", "15m",
+"5d")` failed with a 403 at the CONNECT level, the same class of
+sandbox restriction Tier 3's ElevenLabs/Deepgram calls hit — so the
+actual BUY/SELL notice path (fetch real candles → strategy → notice
+appears in `list_notices`/at CLI startup) needs to be run on your own
+machine, with `gold_signal.enabled` flipped to `true` in `config.yaml`.
+Also unverified for the same reason: yfinance's actual candle shape for
+`XAUUSD=X` at 15m/5d against a live response (the code assumes yfinance's
+documented `history()` DataFrame columns/index, but hasn't seen a real
+one back). `test_voice.py` was excluded from the verify run above for an
+unrelated, pre-existing reason — this sandbox has no PortAudio library,
+so `sounddevice` fails at import time; not something this change touched
+or introduced.
+
 ## Update: one-command launcher
 
 `./run.sh` (macOS/Linux) and `run.bat` (Windows) at the project root:

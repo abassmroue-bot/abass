@@ -13,6 +13,8 @@ from dataclasses import dataclass
 
 from ..tools.notes import search_notes
 from ..tools.reminders import load_reminders
+from ..trading.data_feed import fetch_candles
+from ..trading.strategy import STRATEGIES, Signal
 
 
 @dataclass
@@ -51,7 +53,48 @@ def open_reminders_digest(params: dict) -> CheckResult | None:
     return CheckResult(level="log", text=f"{len(open_reminders)} open reminder(s):\n{lines}")
 
 
+def gold_signal_check(params: dict) -> CheckResult | None:
+    """Fetches recent gold/USD candles and runs a swappable strategy over
+    them, surfacing an interrupt-level notice on a fresh BUY/SELL signal.
+
+    HOLD — including "not enough history yet" — produces nothing, the
+    same "quiet by default" rule every other check follows. This only
+    ever notices and reports a signal; it never places a trade. Needs
+    network access to Yahoo Finance — a fetch failure raises, which the
+    scheduler already catches and logs without taking the loop down.
+    """
+    symbol = params.get("symbol", "XAUUSD=X")
+    interval = params.get("interval", "15m")
+    lookback = params.get("lookback", "5d")
+    strategy_name = params.get("strategy", "moving_average_cross")
+
+    strategy_cls = STRATEGIES.get(strategy_name)
+    if strategy_cls is None:
+        return CheckResult(level="log", text=f"gold_signal: unknown strategy {strategy_name!r}")
+
+    strategy_kwargs = {
+        k: v for k, v in params.items() if k not in {"symbol", "interval", "lookback", "strategy"}
+    }
+    strategy_instance = strategy_cls(**strategy_kwargs)
+
+    candles = fetch_candles(symbol, interval, lookback)
+    signal = strategy_instance.evaluate(candles)
+    if signal is Signal.HOLD:
+        return None
+
+    last = candles[-1]
+    return CheckResult(
+        level="interrupt",
+        text=(
+            f"Gold/USD ({symbol}) signal: {signal.value.upper()} — {strategy_name}, "
+            f"last close {last.close:.2f} at {last.timestamp.isoformat()}. "
+            f"Signal only, no trade was placed."
+        ),
+    )
+
+
 CHECKS = {
     "notes_watch": notes_watch,
     "open_reminders_digest": open_reminders_digest,
+    "gold_signal": gold_signal_check,
 }
