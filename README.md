@@ -106,6 +106,34 @@ checks ship by default:
   own by adding a class to `strategy.py` and registering it in
   `STRATEGIES`, then pointing `params.strategy` at its name in
   `config.yaml`.
+- `gold_mt5_autotrade` — the same strategy framework, but against a live
+  MetaTrader 5 account: fetches candles from a running, logged-in MT5
+  terminal (`src/trillion/trading/mt5_broker.py`) and, on a BUY/SELL
+  signal, **places a real market order** (always with a stop loss and
+  take profit, and only if `src/trillion/trading/risk.py`'s max-open-
+  positions and daily-loss-cap checks allow it). **This is the one thing
+  in Trillion that spends real money without asking you first per
+  trade** — see the "Named exception" paragraph in `AGENT.md`'s safety
+  rules before turning it on.
+  - It does nothing at all — not even connecting to MT5 — unless a
+    *separate* switch is explicitly turned on:
+    `python -m trillion.trading.autotrade_switch on` (`... off` to stop,
+    `... status` to check). This switch is off by default and can only be
+    flipped from the command line, never from inside a conversation.
+  - Needs the MT5 terminal running and logged in on the same (Windows)
+    machine, and the optional dependency installed:
+    `pip install -e ".[mt5]"` (this is separate from the base install
+    because `MetaTrader5` only ships for Windows).
+  - Every risk number — lot size, stop loss/take profit in pips, max open
+    positions, daily loss cap, and the pip-to-price conversion — is in
+    `config.yaml` under `gold_mt5_autotrade.params`. **Verify `pip_size`
+    against your own broker's XAUUSD contract spec** before relying on
+    it; gold's pip convention isn't standardized across brokers, and
+    getting it wrong changes where your stop loss actually sits.
+  - Unverified against a real MT5 terminal as of this build (see
+    `AGENT.md`) — the logic is unit-tested against a fake broker, but run
+    it against a demo account yourself first, live account or not, before
+    trusting it with size.
 
 Anything surfaced is held until you're back — both CLIs print what's
 pending at startup — and stays in the inbox until dismissed, via the

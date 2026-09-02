@@ -21,6 +21,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0.0"]
+# Windows-only (wraps a running MT5 terminal via local IPC) -- not
+# installable on Linux/macOS, so it's opt-in rather than a base dependency.
+mt5 = ["MetaTrader5>=5.0.45"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

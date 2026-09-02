@@ -70,6 +70,24 @@ actually running. It applies the same way whether the action was requested
 by me (text or voice) or initiated by the heartbeat. Approving one action
 never pre-approves the next — every consequential action asks on its own.
 
+**Named exception: MT5 automatic gold trading.** The `gold_mt5_autotrade`
+heartbeat check (`src/trillion/trading/`) is explicitly allowed to spend
+real money — placing live MT5 orders — without a per-trade confirmation
+prompt, which every other "spends money" action above still requires.
+This is a deliberate, narrow carve-out, not a hole in the rule: it's gated
+by a *separate* switch (`autotrade_switch.py`) that defaults to off and
+can only be turned on by running `python -m trillion.trading.autotrade_switch
+on` directly on the machine — never from inside a conversation, never by
+the model deciding to, and never as a side effect of enabling the
+heartbeat check itself (`config.yaml`'s `gold_mt5_autotrade.enabled` only
+puts the check in the schedule; with the separate switch off it still
+does nothing every tick). Every order it places is bounded by
+`risk.py`'s hard caps (max open positions, a daily realized-loss cap) and
+always carries a stop loss and take profit. If this switch didn't exist,
+"fully automatic live trading" would just be a silent violation of the
+rule above; it exists so the exception is visible, deliberate, and
+reversible (`... off` at any time) instead.
+
 ## Proactivity
 
 Yes — Trillion may reach out to me first (Tier 5 heartbeat: scheduled
@@ -392,6 +410,96 @@ one back). `test_voice.py` was excluded from the verify run above for an
 unrelated, pre-existing reason — this sandbox has no PortAudio library,
 so `sounddevice` fails at import time; not something this change touched
 or introduced.
+
+## Update: MT5 automatic gold trading, and the safety-rule carve-out it needed
+
+A second gold/USD heartbeat check, `gold_mt5_autotrade` (registered
+alongside `gold_signal` in `src/trillion/heartbeat/checks.py`), goes
+beyond reporting a signal to actually placing live orders through a
+MetaTrader 5 terminal — the first thing in Trillion that spends real
+money on its own, fully automatically, with no per-trade confirmation
+prompt. This was an explicit, deliberate request (data + real order
+execution, on a live account, fully automatic, not confirm-per-trade),
+made knowing it overrides the Tier 6 "never spend money without asking"
+rule this same spec commits to elsewhere — so rather than quietly build
+around that rule, `AGENT.md`'s safety-rules section was amended in place
+with a named, narrow exception (see "Named exception: MT5 automatic gold
+trading" above) rather than treating the conflict as something to work
+around silently.
+
+New pieces, all under `src/trillion/trading/`:
+- `mt5_broker.py` — the seam to a running, already-logged-in MT5
+  terminal: `connect()`, `get_candles()` (reuses the same `Candle` type
+  `data_feed.py`/yfinance already uses, so the strategy layer stays
+  broker-agnostic), `get_open_positions()`, `get_daily_realized_pnl()`,
+  and `place_market_order()` — which always sends a stop loss and take
+  profit alongside the order, never a bare market order. `MetaTrader5`
+  is Windows-only and imported lazily inside each function (same pattern
+  `data_feed.py` uses for yfinance), so importing this module — and
+  everything that imports it, including `checks.py` — never requires the
+  package to be installed. It's a new optional extra,
+  `pip install -e ".[mt5]"`, kept out of the base dependency list
+  specifically because it isn't installable on Linux/macOS at all and
+  would otherwise break `./run.sh`'s `pip install -e ".[dev]"` for every
+  user, not just MT5 users.
+- `risk.py` — `RiskLimits` + `order_allowed()`, the actual "is a new
+  order allowed right now" decision, kept pure and broker-free
+  specifically so it's fully unit-testable. Two hard caps, either one
+  blocking every new order (win or lose) until it clears on its own:
+  `max_open_positions` and a `daily_loss_cap` on realized P&L. Neither
+  resets itself mid-streak and neither is bypassable from the check.
+- `autotrade_switch.py` — the actual gate the "named exception" above
+  depends on: a flag file (`data/AUTOTRADE_ENABLED`), absent by default,
+  toggled only via `python -m trillion.trading.autotrade_switch
+  on|off|status` run directly on the machine. `gold_mt5_autotrade_check`
+  checks this first and does nothing at all — not even connecting to
+  MT5 — while it's off; enabling the heartbeat check in `config.yaml`
+  alone is inert. Deliberately mirrors `kill_switch.py`'s shape (a
+  presence-of-file flag, its own tiny CLI) since that's the project's
+  existing pattern for "a deliberate, out-of-band, reversible switch."
+
+Chosen risk numbers, all in `config.yaml`'s `gold_mt5_autotrade.params`
+and adjustable there without a code change: `lot_size: 0.01`,
+`stop_loss_pips: 100`, `take_profit_pips: 150`, `max_open_positions: 1`,
+`daily_loss_cap: 50` (USD). `pip_size: 0.1` is called out with an
+explicit warning in both `config.yaml` and the README: gold's pip
+convention isn't standardized across brokers, and this number directly
+sets where the stop loss and take profit actually land — verify it
+against your own broker's XAUUSD contract specification before trusting
+it with real size.
+
+Verified: unit tests (`tests/test_trading.py`, extended) for `risk.py`
+(allowed when clear, blocked at the position cap, blocked at the loss
+cap, allowed just under it) and `autotrade_switch.py` (off by default,
+enable/disable round-trips through a real flag file). For
+`gold_mt5_autotrade_check` itself, against a fake broker (every
+`mt5_broker` function monkeypatched, same technique `gold_signal_check`'s
+tests already used for `fetch_candles`): a complete no-op — MT5 never
+even touched — while the switch is off; HOLD places no order; a signal
+blocked by `max_open_positions` places no order and logs why instead; a
+clear signal places an order with exactly the configured lot size/SL/TP/
+pip size and reports the returned ticket number; an unknown configured
+strategy name degrades to a log entry without touching MT5 at all; the
+check is registered in `CHECKS`. The full suite (78 tests, `test_voice.py`
+still excluded for the pre-existing, unrelated PortAudio reason) passes
+together with everything before it. The autotrade CLI itself
+(`on`/`off`/`status`) was run for real against a temporary data dir and
+behaved as documented.
+
+**Not yet verified, and this is the important gap**: anything against a
+real MT5 terminal. `MetaTrader5` can't be installed in this Linux build
+sandbox at all (Windows-only), so `mt5_broker.py`'s actual shape
+assumptions — `copy_rates_from_pos`'s field names, `positions_get`'s
+`type`/`price_open` fields, `history_deals_get`'s grouping, `order_send`'s
+request dict and `retcode`/`TRADE_RETCODE_DONE` — are all against the
+package's documented API, never exercised against a live terminal or a
+live account. **Before this places a single real order**: install the
+`mt5` extra on a Windows machine with the terminal open and logged in,
+point it at a demo account first regardless of the live-account request
+above, confirm a `gold_signal`-style dry run (or manually calling
+`mt5_broker.get_candles`) returns sane data, and only then run
+`autotrade_switch.py on` — and start by watching it, not by trusting the
+first live order it sends.
 
 ## Update: one-command launcher
 

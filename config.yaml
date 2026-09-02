@@ -59,3 +59,33 @@ heartbeat:
         strategy: "moving_average_cross"
         fast_period: 20
         slow_period: 50
+
+    - name: gold_mt5_autotrade
+      # This is a STRUCTURAL on/off for the check existing in the
+      # schedule at all -- it is NOT the "will this place real orders"
+      # switch. That's a separate, one-time, out-of-band gate:
+      #   python -m trillion.trading.autotrade_switch on
+      # (off by default -- see autotrade_switch.py and the AGENT.md
+      # amendment on money-spending heartbeat actions). With that switch
+      # off, this check runs every tick and does nothing, every time.
+      # Requires the MT5 terminal running and logged into a LIVE account
+      # on the machine this runs on (pip install -e ".[mt5]", Windows
+      # only) -- every order placed while the switch is on is real.
+      enabled: true
+      interval_seconds: 900
+      params:
+        symbol: "XAUUSD"    # MT5 symbol name -- check your broker's exact spelling (e.g. "GOLD", "XAUUSD.a")
+        timeframe: "M15"     # MT5 timeframe suffix: M1, M5, M15, M30, H1, H4, D1, ...
+        lookback_candles: 200
+        strategy: "moving_average_cross"
+        fast_period: 20
+        slow_period: 50
+        lot_size: 0.01
+        stop_loss_pips: 100
+        take_profit_pips: 150
+        # Pip-to-price conversion for XAUUSD -- VERIFY this against your
+        # own broker's contract specification before trusting it; gold's
+        # pip size is not standardized across brokers.
+        pip_size: 0.1
+        max_open_positions: 1
+        daily_loss_cap: 50
