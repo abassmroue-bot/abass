@@ -43,10 +43,11 @@ heartbeat:
       params: {}
 
     - name: gold_signal
-      # Off by default: this one reaches out to Yahoo Finance over the
-      # network on every run, unlike the other (local-only) checks above.
-      # Flip to true once you've confirmed that reaches from your machine.
-      enabled: false
+      # Reaches out to Yahoo Finance over the network on every run, unlike
+      # the other (local-only) checks above — make sure that's reachable
+      # from wherever this runs before relying on it (this build sandbox's
+      # network policy blocks it outright; your own machine may not).
+      enabled: true
       interval_seconds: 900
       params:
         symbol: "XAUUSD=X"   # gold/USD; yfinance also accepts "GC=F" for gold futures

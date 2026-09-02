@@ -97,10 +97,11 @@ checks ship by default:
 - `gold_signal` — fetches recent gold/USD (`XAUUSD=X`) price candles and
   runs a swappable strategy (`src/trillion/trading/strategy.py`) over
   them, surfacing an interrupt-level notice on a fresh BUY/SELL signal.
-  **It only ever reports a signal — it never places a trade.** Off by
-  default (`enabled: false` in `config.yaml`) since, unlike the other
-  checks, it needs live network access to Yahoo Finance; flip it on once
-  you've confirmed that reaches from your machine. The shipped strategy
+  **It only ever reports a signal — it never places a trade.** Enabled by
+  default in `config.yaml`, but unlike the other checks it needs live
+  network access to Yahoo Finance — confirm that reaches from wherever
+  this runs (it's blocked in some sandboxed environments), or set
+  `enabled: false` for that check if it doesn't. The shipped strategy
   (`moving_average_cross`) is a placeholder starting point — swap in your
   own by adding a class to `strategy.py` and registering it in
   `STRATEGIES`, then pointing `params.strategy` at its name in

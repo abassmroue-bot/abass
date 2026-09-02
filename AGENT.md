@@ -358,10 +358,11 @@ meant to be swapped, not a tuned strategy. `src/trillion/trading/`:
   `config.yaml`" extension point `checks.py`/`CHECKS` already used.
 
 `config.yaml` gets one new check entry, `gold_signal`, with
-`enabled: false` — unlike the other two checks, this one reaches out to
+`enabled: true` — unlike the other two checks, this one reaches out to
 Yahoo Finance over the network on every run rather than reading local
-files, so it's opt-in until you've confirmed that reaches from your own
-machine. Its params (`symbol`, `interval`, `lookback`, `strategy`, and
+files, so confirm that's actually reachable from wherever this runs (see
+the "not yet verified" note below) before trusting it; set it back to
+`enabled: false` if it isn't. Its params (`symbol`, `interval`, `lookback`, `strategy`, and
 the chosen strategy's own kwargs like `fast_period`/`slow_period`) are
 all config, no code change needed to retune.
 
@@ -373,7 +374,7 @@ configured strategy name degrades to a quiet log entry instead of
 crashing; a fetch is wired to `fetch_candles` — monkeypatched in tests to
 avoid a real network call — via `checks.gold_signal_check`; the check is
 registered in `CHECKS`). Also confirmed by hand: `load_heartbeat_config()`
-parses the new `gold_signal` entry correctly (name, `enabled: false`,
+parses the new `gold_signal` entry correctly (name, `enabled: true`,
 interval, and every param) and the full suite (66 tests, `test_voice.py`
 excluded — see below) passes together with the pre-existing ones.
 
