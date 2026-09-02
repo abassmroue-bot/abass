@@ -74,7 +74,7 @@ heartbeat:
       enabled: true
       interval_seconds: 900
       params:
-        symbol: "XAUUSD"    # MT5 symbol name -- check your broker's exact spelling (e.g. "GOLD", "XAUUSD.a")
+        symbol: "XAUUSD!"    # confirmed against this account's MT5 Market Watch on 2026-09-02
         timeframe: "M15"     # MT5 timeframe suffix: M1, M5, M15, M30, H1, H4, D1, ...
         lookback_candles: 200
         strategy: "moving_average_cross"
