@@ -54,12 +54,28 @@ def connect() -> None:
         raise RuntimeError(f"MT5 initialize() failed: {mt5.last_error()}")
 
 
+def _ensure_symbol_selected(mt5, symbol: str) -> None:
+    """MT5 only returns rates/tick data for a symbol that's visible in
+    Market Watch -- it isn't enough for the symbol to just exist on the
+    broker. Select it explicitly rather than relying on it having been
+    added by hand in the terminal, since that's an easy thing to miss."""
+    info = mt5.symbol_info(symbol)
+    if info is None:
+        raise RuntimeError(
+            f"MT5 has no symbol named {symbol!r} -- check the exact spelling in your "
+            f"broker's Market Watch (right-click it -> Symbols -> search)."
+        )
+    if not info.visible and not mt5.symbol_select(symbol, True):
+        raise RuntimeError(f"could not add {symbol!r} to Market Watch: {mt5.last_error()}")
+
+
 def get_candles(symbol: str, timeframe: str, count: int) -> list[Candle]:
     mt5 = _mt5()
     tf = getattr(mt5, f"TIMEFRAME_{timeframe.upper()}", None)
     if tf is None:
         raise ValueError(f"unknown MT5 timeframe {timeframe!r}")
 
+    _ensure_symbol_selected(mt5, symbol)
     rates = mt5.copy_rates_from_pos(symbol, tf, 0, count)
     if rates is None or len(rates) == 0:
         raise RuntimeError(f"no MT5 price data for {symbol!r}: {mt5.last_error()}")
@@ -114,6 +130,7 @@ def place_market_order(
     resulting ticket number; raises on any failure or rejection, so a
     failed order can never be mistaken for a placed one."""
     mt5 = _mt5()
+    _ensure_symbol_selected(mt5, symbol)
     tick = mt5.symbol_info_tick(symbol)
     if tick is None:
         raise RuntimeError(f"no MT5 tick data for {symbol!r}: {mt5.last_error()}")
